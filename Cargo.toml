@@ -1,0 +1,32 @@
+[package]
+name = "nepak"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "NewEngine PakBuilder (NEPAK v1)"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+walkdir = "2.5"
+blake3 = "1.5"
+thiserror = "1.0"
+inquire = "0.7"
+
+# Optional native GUI (eframe/egui)
+eframe = { version = "0.26", optional = true }
+egui = { version = "0.26", optional = true }
+rfd = { version = "0.14", optional = true }
+
+# Optional compression
+zstd = { version = "0.13", optional = true, default-features = false }
+
+[features]
+default = ["zstd", "gui"]
+
+gui = ["dep:eframe", "dep:egui", "dep:rfd"]
+
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+strip = true
