@@ -71,8 +71,23 @@ impl NePakApp {
 
                             self.start_job(move |tx| {
                                 let _ = tx.send(JobMsg::Log("Scanning + building…".into()));
-                                let res = pak::build(&input, &output, &prefix, &excludes, compress, level)
-                                    .map_err(|e| e.to_string());
+                                let res = pak::build_with_progress(
+                                    &input,
+                                    &output,
+                                    &prefix,
+                                    &excludes,
+                                    compress,
+                                    level,
+                                    |p| {
+                                        let _ = tx.send(JobMsg::Progress {
+                                            stage: p.stage.as_str().to_string(),
+                                            done: p.done,
+                                            total: p.total,
+                                            item: p.current,
+                                        });
+                                    },
+                                )
+                                .map_err(|e| e.to_string());
                                 let _ = tx.send(JobMsg::Done(res));
                             });
                         }
@@ -83,6 +98,29 @@ impl NePakApp {
                     }
                 }
             });
+
+            if self.busy {
+                ui.add_space(10.0);
+                let total = self.progress_total.max(1);
+                let frac = (self.progress_done.min(total) as f32) / (total as f32);
+
+                let mut label = if self.progress_stage.is_empty() {
+                    "Working…".to_string()
+                } else {
+                    self.progress_stage.clone()
+                };
+                if !self.progress_item.is_empty() {
+                    // Keep the UI stable and readable.
+                    let item = if self.progress_item.len() > 64 {
+                        format!("{}…", &self.progress_item[..64])
+                    } else {
+                        self.progress_item.clone()
+                    };
+                    label.push_str(&format!("  |  {item}"));
+                }
+
+                ui.add(egui::ProgressBar::new(frac).show_percentage().text(label));
+            }
         });
     }
 }

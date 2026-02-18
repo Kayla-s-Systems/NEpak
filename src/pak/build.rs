@@ -11,6 +11,34 @@ use crate::pak::format::{Entry, PayloadKind, FOOTER_MAGIC, MAGIC};
 use crate::pak::io::{write_u32, write_u64};
 use crate::pak::path::{normalize_rel_path, prefixed, should_exclude};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildStage {
+    Scanning,
+    WritingPayloads,
+    WritingIndex,
+    Finalizing,
+}
+
+impl BuildStage {
+    #[inline]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            BuildStage::Scanning => "Scanning",
+            BuildStage::WritingPayloads => "Writing payloads",
+            BuildStage::WritingIndex => "Writing index",
+            BuildStage::Finalizing => "Finalizing",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BuildProgress {
+    pub stage: BuildStage,
+    pub done: u64,
+    pub total: u64,
+    pub current: Option<String>,
+}
+
 /// NEPAK v1 layout:
 /// - [MAGIC 8]
 /// - payload blobs (raw or compressed)
@@ -42,6 +70,18 @@ pub fn build(
     compress: bool,
     zstd_level: i32,
 ) -> PakResult<()> {
+    build_with_progress(input, output, prefix, excludes, compress, zstd_level, |_| {})
+}
+
+pub fn build_with_progress(
+    input: &Path,
+    output: &Path,
+    prefix: &str,
+    excludes: &[String],
+    compress: bool,
+    zstd_level: i32,
+    mut progress: impl FnMut(BuildProgress),
+) -> PakResult<()> {
     if compress {
         #[cfg(not(feature = "zstd"))]
         {
@@ -49,6 +89,13 @@ pub fn build(
             return Err(PakError::NoZstd);
         }
     }
+
+    progress(BuildProgress {
+        stage: BuildStage::Scanning,
+        done: 0,
+        total: 0,
+        current: None,
+    });
 
     let mut files: Vec<(String, PathBuf)> = Vec::new();
     for ent in WalkDir::new(input).follow_links(false).into_iter() {
@@ -74,12 +121,20 @@ pub fn build(
 
     files.sort_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()));
 
+    let total_files = files.len() as u64;
+    progress(BuildProgress {
+        stage: BuildStage::WritingPayloads,
+        done: 0,
+        total: total_files,
+        current: None,
+    });
+
     let mut out = File::create(output)?;
     out.write_all(&MAGIC)?;
 
     let mut entries: Vec<Entry> = Vec::with_capacity(files.len());
 
-    for (logical, physical) in files {
+    for (i, (logical, physical)) in files.into_iter().enumerate() {
         let payload_offset = out.stream_position()?;
 
         let mut f = File::open(&physical)?;
@@ -119,7 +174,24 @@ pub fn build(
             raw_hash,
             payload_kind: kind,
         });
+
+        progress(BuildProgress {
+            stage: BuildStage::WritingPayloads,
+            done: (i as u64) + 1,
+            total: total_files,
+            current: entries
+                .last()
+                .map(|e| e.path.clone())
+                .filter(|s| !s.is_empty()),
+        });
     }
+
+    progress(BuildProgress {
+        stage: BuildStage::WritingIndex,
+        done: 0,
+        total: 1,
+        current: None,
+    });
 
     let index_offset = out.stream_position()?;
     let mut index_hasher = Hasher::new();
@@ -154,6 +226,20 @@ pub fn build(
     out.write_all(&index_buf)?;
     let index_len = out.stream_position()? - index_offset;
 
+    progress(BuildProgress {
+        stage: BuildStage::WritingIndex,
+        done: 1,
+        total: 1,
+        current: None,
+    });
+
+    progress(BuildProgress {
+        stage: BuildStage::Finalizing,
+        done: 0,
+        total: 1,
+        current: None,
+    });
+
     out.write_all(&FOOTER_MAGIC)?;
     write_u64(&mut out, index_offset)?;
     write_u64(&mut out, index_len)?;
@@ -161,5 +247,12 @@ pub fn build(
     write_u32(&mut out, 0)?;
 
     out.flush()?;
+
+    progress(BuildProgress {
+        stage: BuildStage::Finalizing,
+        done: 1,
+        total: 1,
+        current: None,
+    });
     Ok(())
 }

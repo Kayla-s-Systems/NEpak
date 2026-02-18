@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
-use crate::pak::build::build as build_impl;
+use crate::pak::build::{build as build_impl, build_with_progress as build_with_progress_impl, BuildProgress};
 use crate::pak::error::{PakError, PakResult};
 use crate::pak::format::{EntryInfo, PayloadKind, MAGIC};
 use crate::pak::io::{hex32, read_exact};
@@ -20,6 +20,18 @@ pub fn build(
     zstd_level: i32,
 ) -> PakResult<()> {
     build_impl(input, output, prefix, excludes, compress, zstd_level)
+}
+
+pub fn build_with_progress(
+    input: &Path,
+    output: &Path,
+    prefix: &str,
+    excludes: &[String],
+    compress: bool,
+    zstd_level: i32,
+    progress: impl FnMut(BuildProgress),
+) -> PakResult<()> {
+    build_with_progress_impl(input, output, prefix, excludes, compress, zstd_level, progress)
 }
 
 /// Read pak index entries (without extracting payloads).

@@ -10,6 +10,12 @@ use std::sync::mpsc;
 #[derive(Debug)]
 pub enum JobMsg {
     Log(String),
+    Progress {
+        stage: String,
+        done: u64,
+        total: u64,
+        item: Option<String>,
+    },
     Done(Result<(), String>),
     ListDone(Result<Vec<pak::EntryInfo>, String>),
     VerifyDone(Result<(), String>),

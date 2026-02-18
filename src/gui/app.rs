@@ -33,6 +33,11 @@ pub struct NePakApp {
     pub status: String,
     pub busy: bool,
 
+    pub progress_stage: String,
+    pub progress_done: u64,
+    pub progress_total: u64,
+    pub progress_item: String,
+
     pub rx: Option<mpsc::Receiver<JobMsg>>,
 }
 
@@ -59,6 +64,10 @@ impl Default for NePakApp {
             logs: vec!["NEPAK GUI ready.".into()],
             status: String::new(),
             busy: false,
+            progress_stage: String::new(),
+            progress_done: 0,
+            progress_total: 0,
+            progress_item: String::new(),
             rx: None,
         }
     }
@@ -87,8 +96,24 @@ impl NePakApp {
             match msg {
                 JobMsg::Log(s) => self.push_log(s),
 
+                JobMsg::Progress {
+                    stage,
+                    done,
+                    total,
+                    item,
+                } => {
+                    self.progress_stage = stage;
+                    self.progress_done = done;
+                    self.progress_total = total;
+                    self.progress_item = item.unwrap_or_default();
+                }
+
                 JobMsg::Done(r) => {
                     self.busy = false;
+                    self.progress_stage.clear();
+                    self.progress_done = 0;
+                    self.progress_total = 0;
+                    self.progress_item.clear();
                     self.status = match r {
                         Ok(()) => "Done.".into(),
                         Err(e) => format!("Error: {e}"),
@@ -100,6 +125,10 @@ impl NePakApp {
 
                 JobMsg::ListDone(r) => {
                     self.busy = false;
+                    self.progress_stage.clear();
+                    self.progress_done = 0;
+                    self.progress_total = 0;
+                    self.progress_item.clear();
                     match r {
                         Ok(list) => {
                             self.entries = list;
@@ -119,6 +148,10 @@ impl NePakApp {
 
                 JobMsg::VerifyDone(r) => {
                     self.busy = false;
+                    self.progress_stage.clear();
+                    self.progress_done = 0;
+                    self.progress_total = 0;
+                    self.progress_item.clear();
                     self.status = match r {
                         Ok(()) => "Pak verified OK.".into(),
                         Err(e) => format!("Error: {e}"),
@@ -145,6 +178,10 @@ impl NePakApp {
         self.rx = Some(rx);
         self.busy = true;
         self.status = "Working...".into();
+        self.progress_stage = "Starting".into();
+        self.progress_done = 0;
+        self.progress_total = 0;
+        self.progress_item.clear();
         std::thread::spawn(move || f(tx));
     }
 
