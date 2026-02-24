@@ -1,4 +1,10 @@
 # nepak — PakBuilder for NewEngine
+![Created](https://img.shields.io/github/created-at/Kayla-s-Systems/NEpak)
+![Commits](https://img.shields.io/github/commit-activity/t/Kayla-s-Systems/NEpak)
+![Last Commit](https://img.shields.io/github/last-commit/Kayla-s-Systems/NEpak)
+![Repo Size](https://img.shields.io/github/repo-size/Kayla-s-Systems/NEpak)
+![Code Size](https://img.shields.io/github/languages/code-size/Kayla-s-Systems/NEpak)
+![Contributors](https://img.shields.io/github/contributors/Kayla-s-Systems/NEpak)
 
 CLI tool to build deterministic `.pak` containers (NEPAK v1).
 
